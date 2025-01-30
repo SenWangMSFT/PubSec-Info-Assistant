@@ -4,31 +4,14 @@
 import logging
 import json
 import html
+import re
 from datetime import datetime
 from enum import Enum
-import zipfile
 import os
 from azure.storage.blob import BlobServiceClient
 from shared_code.utilities_helper import UtilitiesHelper
-from nltk.tokenize import sent_tokenize
-import tiktoken
-import nltk
-# Try to download using nltk.download
-nltk.download('punkt')
 from bs4 import BeautifulSoup
-
-punkt_dir = os.path.join(nltk.data.path[0], 'tokenizers/punkt')
-
-# Check if the 'punkt' directory exists
-if not os.path.exists(punkt_dir):
-    punkt_zip_path = os.path.join(nltk.data.path[0], 'tokenizers/punkt.zip')
-
-    # If the 'punkt.zip' file exists, unzip it
-    if os.path.exists(punkt_zip_path):
-        with zipfile.ZipFile(punkt_zip_path, 'r') as zip_ref:
-            zip_ref.extractall(os.path.join(nltk.data.path[0], 'tokenizers/'))
-    else:
-        raise Exception("Failed to download 'punkt' package")
+import tiktoken
 
 class ParagraphRoles(Enum):
     """ Enum to define the priority of paragraph roles """
@@ -391,6 +374,15 @@ class Utilities:
 
         return chunks
     
+    def _regex_sentence_tokenize(self, text):
+        """
+        A simple regex-based sentence tokenization. Splits text on sentence endings
+        ('.', '!', '?') while retaining that punctuation in the result.
+        """
+        sentences = re.findall(r'[^.!?]+[.!?]*', text)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        return sentences
+    
     def build_chunks(self, document_map, myblob_name, myblob_uri, chunk_target_size):
         """ Function to build chunk outputs based on the document map """
 
@@ -460,7 +452,7 @@ class Utilities:
                         # start by keeping the existing in-memory chunk in front of the large paragraph
                         # and begin to process it on sentence boundaries to break it down into
                         # sub-chunks that are below the CHUNK_TARGET_SIZE
-                        sentences = sent_tokenize(chunk_text + paragraph_text)
+                        sentences = self._regex_sentence_tokenize(chunk_text + paragraph_text)
                         chunks = []
                         chunk = ""
                         for sentence in sentences:
